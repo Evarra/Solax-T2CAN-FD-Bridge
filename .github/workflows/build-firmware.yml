@@ -1,0 +1,80 @@
+name: Build T-2CAN-FD firmware
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PlatformIO
+        run: python -m pip install platformio==6.1.19
+
+      - name: Test SOC and current-limit logic
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror test/test_logic.cpp -o /tmp/solax_bridge_logic_test
+          /tmp/solax_bridge_logic_test
+
+      - name: Build firmware
+        run: pio run -e lilygo_t2can_fd
+
+      - name: Prepare downloadable binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_dir=".pio/build/lilygo_t2can_fd"
+          release_dir="release"
+          mkdir -p "$release_dir"
+
+          cp "$build_dir/firmware.bin" "$release_dir/t2can-fd-firmware.bin"
+          cp "$build_dir/firmware.elf" "$release_dir/t2can-fd-firmware.elf"
+          cp "$build_dir/bootloader.bin" "$release_dir/bootloader.bin"
+          cp "$build_dir/partitions.bin" "$release_dir/partitions.bin"
+
+          boot_app_source="$(find "$HOME/.platformio/packages/framework-arduinoespressif32" -name boot_app0.bin -print -quit)"
+          test -n "$boot_app_source"
+          cp "$boot_app_source" "$release_dir/boot_app0.bin"
+
+          python "$HOME/.platformio/packages/tool-esptoolpy/esptool.py" \
+            --chip esp32s3 merge_bin \
+            -o "$release_dir/t2can-fd-full-flash.bin" \
+            --flash_mode qio \
+            --flash_freq 80m \
+            --flash_size 16MB \
+            0x0 "$release_dir/bootloader.bin" \
+            0x8000 "$release_dir/partitions.bin" \
+            0xe000 "$release_dir/boot_app0.bin" \
+            0x10000 "$release_dir/t2can-fd-firmware.bin"
+
+          cat > "$release_dir/FLASHING.txt" <<'EOF'
+          Recommended first/full flash:
+            esptool.py --chip esp32s3 --port COM_PORT erase_flash
+            esptool.py --chip esp32s3 --port COM_PORT --baud 921600 write_flash 0x0 t2can-fd-full-flash.bin
+
+          Application-only update:
+            esptool.py --chip esp32s3 --port COM_PORT --baud 921600 write_flash 0x10000 t2can-fd-firmware.bin
+          EOF
+
+          (cd "$release_dir" && sha256sum *.bin > SHA256SUMS.txt)
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: solax-t2can-fd-firmware
+          path: release/
+          if-no-files-found: error
+          retention-days: 30
