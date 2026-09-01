@@ -6,9 +6,13 @@
 //----------------------------------------------------------------------------------------------------------------------
 
 #include "ACAN2517FD.h"
-#include "../../system_settings.h" //Contains task priority
 
-#include "../../devboard/utils/logging.h"
+// This driver copy originally came from Battery-Emulator, where these values
+// were supplied by project-global headers. Keep the vendored library
+// self-contained so it can also be built in this standalone bridge project.
+#ifndef TASK_ACAN2517FD_PRIORITY
+  #define TASK_ACAN2517FD_PRIORITY 10
+#endif
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -1334,7 +1338,9 @@ ACAN2517FDSettings::Oscillator ACAN2517FD::autodetectCrystalFrequency (void) {
   // Calculate frequency in 0.1MHz units
   const uint32_t freq_times_10 = ((c2 - c1) * 10) / (t2 - t1);
 
-  logging.printf("MCP2518FD autodetected crystal: %ddMHz\n", freq_times_10);
+  Serial.printf("MCP2518FD autodetected crystal: %u.%u MHz\n",
+                freq_times_10 / 10,
+                freq_times_10 % 10);
 
   // Disable TBC again
   writeRegister8 (C1TSCON_REGISTER_16_23, 0x00);

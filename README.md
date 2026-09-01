@@ -51,6 +51,26 @@ The bridge splits the original bus into two separate CAN segments. Each segment 
 
 The serial monitor shows real SOC, SOC sent to the inverter, original/limited charge current, forwarded frame counters, drops, and CAN errors.
 
+## Build a binary with GitHub Actions
+
+The project contains `.github/workflows/build-firmware.yml`. GitHub automatically builds the firmware after every push, pull request, or manual workflow run.
+
+1. Create an empty GitHub repository.
+2. Unzip this project and upload/push the **contents** of the `Solax-T2CAN-FD-Bridge` folder. `platformio.ini` must be in the repository root; do not upload only the ZIP file.
+3. Open the repository's **Actions** tab.
+4. Select **Build T-2CAN-FD firmware**. It starts automatically after the first push, or choose **Run workflow**.
+5. Open the completed run and download the `solax-t2can-fd-firmware` artifact.
+
+The artifact contains:
+
+- `t2can-fd-full-flash.bin` — complete first-install image, flashed at offset `0x0`
+- `t2can-fd-firmware.bin` — application-only image, flashed at `0x10000`
+- bootloader and partition binaries
+- `FLASHING.txt` with commands
+- SHA-256 checksums
+
+For a new board, use `t2can-fd-full-flash.bin`. The application-only file is intended for later updates after a compatible full image is already installed.
+
 ## Configuration
 
 Edit `src/config.h` to change:
